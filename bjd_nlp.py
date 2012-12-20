@@ -36,7 +36,7 @@ def clean_text(text) :
 def stem_words(words, which='porter') :
     """Given a list of words (tokenized), return list of stemmed words
     @param which: Which stemmer to use, either porter or lancaster
-    @type: string
+    @type which: string
     """
     if which.lower() == 'porter' :
         stemmer = nltk.PorterStemmer()
@@ -59,11 +59,71 @@ def tokenize_and_tag(text) :
 
 
 ################################################################################
+def get_nbest_trigrams(words, measure='pmi', min_freq=0, stop_ngs=[], n_best=10, scores=False) :
+    """Gets N best trigrams from a list of words.
+    @param measure: ngram association measure to use in scoring
+    @type measure: string; 'pmi', 'chi_sq', 'likelihood_ratio', 'student_t', 'raw_freq'
+    @param min_freq: minimum ngram frequency to keep
+    @type min_freq: int; default value of 0, so no frequency filtering
+    @param n_best: number of highest-scored ngrams to return
+    @param stop_ngs: list of ngrams to remove from consideration
+    @type stop_ngs: list
+    @type n_best: int
+    @param scores: return tuples of ngram and scores, or not
+    @type scores: boolean
+    """
+    tcf = nltk.collocations.TrigramCollocationFinder.from_words(words)
+    tcf.apply_word_filter(lambda w: len(w) < 3 or w in set(nltk.corpus.stopwords.words('english')))
+    tcf.apply_ngram_filter(lambda w1, w2, w3: ' '.join([w1,w2,w3]) in stop_ngs)
+    tcf.apply_freq_filter(min_freq)
+    if measure == 'pmi' : m = nltk.collocations.TrigramAssocMeasures.pmi
+    elif measure == 'chi_sq' : m = nltk.collocations.TrigramAssocMeasures.chi_sq
+    elif measure == 'likelihood_ratio' : m = nltk.collocations.TrigramAssocMeasures.likelihood_ratio
+    elif measure == 'student_t' : m = nltk.collocations.TrigramAssocMeasures.student_t
+    elif measure == 'raw_freq' : m = nltk.collocations.TrigramAssocMeasures.raw_freq
+    else : raise NameError('Valid association measure must be provided!')
+    if scores is False :
+        return tcf.nbest(m, n_best)
+    elif scores is True :
+        return tcf.score_ngrams(m)[:n_best]
+
+
+################################################################################
+def get_nbest_bigrams(words, measure='pmi', min_freq=0, stop_ngs=[], n_best=10, scores=False) :
+    """Gets N best bigrams from a list of words.
+    @param measure: ngram association measure to use in scoring
+    @type measure: string; 'pmi', 'chi_sq', 'likelihood_ratio', 'student_t', 'raw_freq'
+    @param min_freq: minimum ngram frequency to keep
+    @type min_freq: int; default value of 0, so no frequency filtering
+    @param n_best: number of highest-scored ngrams to return
+    @param stop_ngs: list of ngrams to remove from consideration
+    @type stop_ngs: list
+    @type n_best: int
+    @param scores: return tuples of ngram and scores, or not
+    @type scores: boolean
+    """
+    bcf = nltk.collocations.BigramCollocationFinder.from_words(words)
+    bcf.apply_word_filter(lambda w: len(w) < 3 or w in set(nltk.corpus.stopwords.words('english')))
+    bcf.apply_ngram_filter(lambda w1, w2: ' '.join([w1,w2]) in stop_ngs)
+    bcf.apply_freq_filter(min_freq)
+    if measure == 'pmi' : m = nltk.collocations.BigramAssocMeasures.pmi
+    elif measure == 'chi_sq' : m = nltk.collocations.BigramAssocMeasures.chi_sq
+    elif measure == 'likelihood_ratio' : m = nltk.collocations.BigramAssocMeasures.likelihood_ratio
+    elif measure == 'student_t' : m = nltk.collocations.BigramAssocMeasures.student_t
+    elif measure == 'raw_freq' : m = nltk.collocations.BigramAssocMeasures.raw_freq
+    else : raise NameError('Valid association measure must be provided!')
+    if scores is False :
+        return bcf.nbest(m, n_best)
+    elif scores is True :
+        return bcf.score_ngrams(m)[:n_best]
+
+
+################################################################################
 def regex_chunker(sentence, np_only=False) :
     """Given POS-tagged sentence, returns tree with chunked phrases.
     @param sentence: Tokenized sentence with tagged parts of speech (NLTK)
     @param np_only: look only for NPs (and not PPs or VPs)
-    @type: boolean
+    @type np_only: boolean
     """
     if np_only is False :
         grammar = r"""
@@ -77,7 +137,7 @@ def regex_chunker(sentence, np_only=False) :
             NP: {<DT|PP\$>?<JJ>*<NN>} # determiner/possessive, adjectives, and noun
                 {<NN.*>+}             # consecutive (proper) nouns
             """
-    cp = nltk.RegexpParser(grammar)
+    cp = nltk.RegexpParser(grammar, loop=2)
     tree = cp.parse(sentence)
     return tree
 
@@ -87,9 +147,9 @@ def plot_freq_dist(fd, ylim=20, title=False) :
     """Plots NLTK FreqDist in slightly nicer format
     @param fd: Frequency distribution (NLTK)
     @param title: Name of title to add to freq dist
-    @type string, or boolean False by default
+    @type title: string, or boolean False by default
     @param ylim: Number of entries on y-axis
-    @type: integer
+    @type ylim: int
     """
     fig = plt.figure("fd", figsize=(6,12), dpi=300, facecolor='white', edgecolor='white')
     ax = fig.add_subplot(1,1,1)
@@ -112,39 +172,47 @@ def plot_freq_dist(fd, ylim=20, title=False) :
 
 
 ################################################################################
-def plot_barh_chart(fd, ylim=20, title=False,
-                    frac=False, save=False) :
+def plot_barh_chart(fd, ylim=20, title=False, xlab='Default xlab',
+                    n_docs=0, save=False) :
     """Plots word frequency distribution (NLTK) as horizontal bar chart.
     @param fd: Frequency distribution (NLTK)
     @param title: Name of title to add to bar chart
-    @type: string, or boolean False by default
+    @type title: string, or boolean False by default
     @param ylim: Number of bars on y-axis
-    @type: integer
-    @param frac: Plot bar lengths as fraction of total documents
-    @type: boolean False by default
+    @type ylim: integer
+    @param n_docs: Plot bar lengths as fraction of total documents
+    @type n_docs: integer
     @param save: Save plot instead of showing it.
-    @type : boolean False by default
+    @type save: boolean False by default
     """
     fig = plt.figure("fd", figsize=(10,6), dpi=150, facecolor='white', edgecolor='white')
     ax = fig.add_subplot(1,1,1)
     plt.subplots_adjust(left=0.25, right=0.9, top=0.9, bottom=0.1)
     if title is not False : ax.set_title(title)
+    ax.set_xlabel(xlab)
     pos = np.arange(ylim)+0.5
-    if frac is False :
+    if n_docs == 0 :
         lengths = np.array(fd.values()[0:ylim])
-        ax.set_xlabel('Number of Articles with Mention')
         ax.set_xlim(0, fd[fd.keys()[0]]+1)
-    elif frac is True :
-        lengths = np.array(fd.values()[0:ylim]) / float(numDocs)
-        ax.set_xlabel('Fraction of Articles with Mention')
-        ax.set_xlim(0, np.array(fd[fd.keys()[0]]+1)/ float(numDocs))
+    else :
+        lengths = np.array(fd.values()[0:ylim]) / float(n_docs)
+        ax.set_xlim(0, np.array(fd[fd.keys()[0]]+1) / float(n_docs))
     rects = ax.barh(pos, lengths, align='center', color='CornflowerBlue', linewidth=0)
     ax.set_yticks(pos)
     ax.set_yticklabels(fd.keys())
     ax.yaxis.set_ticks_position('none')
+    ax.get_xaxis().tick_bottom()
+    for spine in ['left', 'right', 'top'] :
+        ax.spines[spine].set_visible(False)
     ax.set_ylim(-0.5, ylim)
     plt.gca().invert_yaxis()
     if save is False :
         plt.show()
     elif save is True :
         plt.savefig('plot_barh_chart.pdf', dpi=300)
+
+
+
+
+
+
