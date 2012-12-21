@@ -1,4 +1,5 @@
 
+import collections
 import matplotlib.pyplot as plt
 import nltk
 import numpy as np
@@ -140,6 +141,50 @@ def regex_chunker(sentence, np_only=False) :
     cp = nltk.RegexpParser(grammar, loop=2)
     tree = cp.parse(sentence)
     return tree
+
+
+################################################################################
+def bag_of_words(words, bad_words=False) :
+    """Input list of words, return feature set usable by an NLTK classifier
+    @param words: all (good) words in a text
+    @type words: list of strings
+    @param bad_words: optional list of bad words to exclude as featuers
+    @type bad_words: list of strings, or False by default
+    """
+    if bad_words is False :
+        return dict([(word, True) for word in words])
+    else :
+        return bag_of_words(set(words) - set(bad_words))
+
+
+################################################################################
+def get_label_features_from_corpus(corpus, feature_detector=bag_of_words) :
+    """Create a list of labeled feature sets from an NLTK corpus to train a classifier.
+    @param corpus: NLTK corpus to use for training
+    @param feature_detector: extract features from text, returned in dictionary form
+    @type feature_detector: function
+    return: dictionary of the form {label: [featureset]}
+    """
+    label_features = collections.defaultdict(list)
+    for label in corpus.categories() :
+        for fileid in corpus.fileids(categories=[label]) :
+            print fileid
+            features = feature_detector(corpus.words())
+            label_features[label].append(features)
+    return label_features
+
+
+################################################################################
+def split_label_features(l_features, split=0.75) :
+    """Construct list of labeled training and testing instances.
+    """
+    train = []
+    test = []
+    for label, features in l_features.iteritems() :
+        cutoff = int(len(features) * split)
+        train.extend([(feature, label) for feature in features[:cutoff]])
+        test.extend([(feature, label) for feature in features[cutoff:]])
+    return train, test
 
 
 ################################################################################
